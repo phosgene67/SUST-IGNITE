@@ -19,7 +19,7 @@ const int sensorWeight[NUM_SENSORS] = { -250, -150, -50,
 
 #define POS_ALL_WHITE (-9999)
 #define POS_ALL_BLACK  9999
-#define BASE_SPEED               150
+#define BASE_SPEED               180
 #define MIN_SPEED                110
 #define CRUISE_MAX_SPEED         150
 #define SEARCH_SPEED             120
@@ -27,10 +27,10 @@ const int sensorWeight[NUM_SENSORS] = { -250, -150, -50,
 #define STRAIGHT_ERROR_THRESHOLD 25
 #define RAMP_INTERVAL_MS         15UL
 #define RAMP_STEP                2
-
-#define GAP_COAST_MS      50UL     // bridges small dashed-line gaps
+#define STOP_BOX_HOLD_MS 100UL   // full-black held this long = filled finish box, not a thin junction bar
+#define GAP_COAST_MS      100UL     // bridges small dashed-line gaps
 #define SEARCH_TIMEOUT_MS 2000UL   // give up & stop past this, if line was ever tracked
-#define CROSS_HOLD_MS     30UL    // full-black held this long = probable T, not a quick crossing
+#define CROSS_HOLD_MS     10UL    // full-black held this long = probable T, not a quick crossing
 
 #define TURN_45_MIN_ERROR 100
 #define TURN_90_MIN_ERROR 200
@@ -129,7 +129,7 @@ public:
 private:
     int16_t _kpQ8 = 167;   // ~0.70 real gain
     int16_t _kiQ8 = 0;
-    int16_t _kdQ8 = 64;    // ~0.35 real gain
+    int16_t _kdQ8 = 77;    // ~0.35 real gain
 
     int32_t _integral = 0;
     int _lastError = 0;
@@ -155,7 +155,7 @@ public:
     bool detectGap();
     bool detectWhiteLine();
     bool detectLostLine();
-
+    bool detectStopBox();
     unsigned long whiteDuration() const;  // ms since all-white began, 0 if not currently all-white
     unsigned long blackDuration() const;  // ms since all-black began, 0 if not currently all-black
 
@@ -198,7 +198,7 @@ private:
     void handle90Right();
     void handleTJunction();
     void handleCross();
-
+    void handleStopBox();
     void handleGap();
     void handleWhiteLine();
     void searchLine();
@@ -587,33 +587,23 @@ bool JunctionDetector::detect90Right() {
 }
 
 bool JunctionDetector::detectCross() {
-    // Full-width black bar, still fresh (not yet held past CROSS_HOLD_MS).
-    //
-    // HONESTY NOTE: a 6-sensor downward array cannot geometrically
-    // distinguish a straight crossing (+) from a T-junction from a
-    // single scan - both read as "all 6 black". detectCross() and
-    // detectTJunction() key off the SAME raw signal; hold-time is a
-    // weak heuristic here, not a guarantee. If you need reliable
-    // maze-solving, feed in external course knowledge at the MAZE HOOK
-    // in Robot::handleTJunction(), or add side-facing sensors.
-    return allBlackActive && blackDuration() < CROSS_HOLD_MS;
+    // Exiting a full-black bar back into a partial line pattern means
+    // the line continues straight ahead - the bar was a simple
+    // crossing, not a dead-ended branch. No timing needed: this is a
+    // one-frame transition check.
+    return previousMask == ALL_SENSORS_MASK &&
+           currentMask != ALL_SENSORS_MASK &&
+           currentMask != 0x00;
 }
 
 bool JunctionDetector::detectTJunction() {
    if (currentMask != ALL_SENSORS_MASK)
         return false;
+   if (previousMask == 0x00 || previousMask == ALL_SENSORS_MASK) return false;
 
-    // Came from normal line
-    if (previousMask == 0b001100 ||
-        previousMask == 0b000100 ||
-        previousMask == 0b001000 ||
-        previousMask == 0b011110 ||
-        previousMask == 0b001110)
-    {
-        return true;
-    }
+    bool wasOnTrunk = (previousMask & 0b001100) != 0;
 
-    return false;
+    return wasOnTrunk;
 
 }
 
@@ -635,6 +625,14 @@ bool JunctionDetector::detectLostLine() {
     // searchLine() resolves which by also checking hasTrackedLine and
     // SEARCH_TIMEOUT_MS.
     return allWhiteActive && whiteDuration() >= GAP_COAST_MS;
+}
+bool JunctionDetector::detectStopBox() {
+    // A finish/stop box is a solid filled rectangle - wider than any
+    // junction crossbar. Real T/cross junctions self-clear within a
+    // loop or two of the pivot/drive-through starting (the array
+    // rotates or drives off a thin bar). If full-black survives well
+    // past that, it's not a junction anymore - it's a filled box.
+    return allBlackActive && blackDuration() >= STOP_BOX_HOLD_MS;
 }
 
 // =============================================================
@@ -667,7 +665,7 @@ bool Robot::readButtonPressed(uint8_t pin, uint8_t index) {
         pressed = (current == LOW);   // INPUT_PULLUP: LOW = pressed
     }
     return pressed;
-}
+}   
 
 void Robot::updateState() {
     bool calibratePressed = readButtonPressed(BTN_CALIBRATE, 0);
@@ -726,10 +724,12 @@ void Robot::followLine() {
     sensor.readAnalog();
     sensor.readDigital();
     junction.update();
-
+    // ---------- full-width black held long = finish/stop box ----------
+    if (junction.detectStopBox()) { handleStopBox(); return; }
     // ---------- full-width black bar: cross / T-junction ----------
-    if (junction.detectCross()) { handleCross(); return; }
+   
     if (junction.detectTJunction()) { handleTJunction(); return; }
+     if (junction.detectCross()) { handleCross(); return; }
 
     // ---------- line lost entirely: gap or genuine derailment ----------
     if (junction.detectGap()) { handleGap(); return; }
@@ -799,18 +799,21 @@ void Robot::handle90Right() {
 }
 
 void Robot::handleCross() {
-    // Drive straight through, holding the last commanded output.
-    motor.drive(motor.getLastLeftSpeed(), motor.getLastRightSpeed());
+motor.turnRight(SEARCH_SPEED);
+
+    _lastDirection = -1;
+    _hasTrackedLine = true;
+    _cruiseSpeed = BASE_SPEED;   // re-enter the straight-line ramp fresh once this clears
+    _lastRampTime = millis();
 }
 
 void Robot::handleTJunction() {
-    // MAZE HOOK: if your rules require actually turning here (maze
-    // solving) rather than driving through, decide left/right/straight
-    // using externally-known course info and call motor.turnLeft()/
-    // turnRight()/forward() instead of falling through.
-    //
-    // Default (no maze knowledge wired in): treat it like a crossing.
-    motor.drive(motor.getLastLeftSpeed(), motor.getLastRightSpeed());
+    motor.turnLeft(SEARCH_SPEED);
+
+    _lastDirection = 1;
+    _hasTrackedLine = true;
+    _cruiseSpeed = BASE_SPEED;   // re-enter the straight-line ramp fresh once this clears
+    _lastRampTime = millis();
 }
 
 void Robot::handleGap() {
@@ -852,6 +855,10 @@ void Robot::searchLine() {
     } else {
         motor.forward(SEARCH_SPEED);   // no history yet - creep forward
     }
+}
+void Robot::handleStopBox() {
+    motor.brake();              // TB6612 short-brake - fast, decisive stop
+    currentState = STATE_STOPPED;
 }
 
 // =============================================================
