@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 
+
 #define PWMA 3      // PD3 = OC2B (Timer2)  - RIGHT motor PWM
 #define AI1  7      // PD7                   - RIGHT motor dir
 #define AI2  6      // PD6                   - RIGHT motor dir
@@ -47,5 +48,8 @@ const int sensorWeight[NUM_SENSORS] = { -250, -150, -50,
 
 #define CALIBRATION_DURATION_MS 5000UL
 #define DEBOUNCE_MS 25UL
+
+
+
 
 #endif
