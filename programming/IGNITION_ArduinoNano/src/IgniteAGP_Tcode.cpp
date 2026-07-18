@@ -19,9 +19,9 @@ const int sensorWeight[NUM_SENSORS] = { -250, -150, -50,
 
 #define POS_ALL_WHITE (-9999)
 #define POS_ALL_BLACK  9999
-#define BASE_SPEED               250
-#define MIN_SPEED                130
-#define CRUISE_MAX_SPEED         180
+#define BASE_SPEED               180
+#define MIN_SPEED                110
+#define CRUISE_MAX_SPEED         150
 #define SEARCH_SPEED             120
 #define ERROR_FULL_SCALE         250
 #define STRAIGHT_ERROR_THRESHOLD 25

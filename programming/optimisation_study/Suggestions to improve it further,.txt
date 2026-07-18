@@ -1,0 +1,44 @@
+Suggestions to improve it further, without changing the current code:
+Avoid global objects over time. Pass required dependencies into Robot instead of relying on extern globals. This makes each module easier to test and reuse.
+
+Put tuning values in one clearly labelled section, such as Config.h: PID gains, speeds, thresholds, gap timing, and turn behavior. Add comments describing how each value affects the robot.
+
+Add debug modes controlled by a compile-time flag. For example, optionally print sensor mask, position, PID correction, motor speeds, and detected junction. Keep serial output disabled during racing because it slows the control loop.
+
+Measure loop time with micros(). A fast, consistent control-loop time makes PID behavior more stable and helps identify slow code paths.
+
+Use a state-based turn routine. Currently a detected sharp turn commands a pivot each loop. A dedicated “turning” state that exits only after the center sensors find the line can make 90° turns more dependable.
+
+Improve calibration validation. After calibration, check that every sensor observed a sufficiently large min–max range. If not, indicate a failed calibration rather than using unreliable thresholds.
+
+Add a safe error/fault state: stop the motors if sensor data is implausible, calibration fails, or the line remains lost for too long.
+
+Keep test files separate from the main build. Ensure only the intended entry-point source is compiled, so test sketches and the monolithic file cannot conflict with main.cpp.
+
+Record your tested values in a small tuning table: track type, lighting, battery voltage, PID values, and resulting behavior. For line followers, this documentation becomes surprisingly valuable.
+
+The design is solid for a student/competition line follower. The biggest next gains will come from robust turning behavior, calibration checks, and systematic PID/speed tuning—not from further splitting files.
+
+
+8:34 PMSuggestions to improve it further, without changing the current code:
+Avoid global objects over time. Pass required dependencies into Robot instead of relying on extern globals. This makes each module easier to test and reuse.
+
+Put tuning values in one clearly labelled section, such as Config.h: PID gains, speeds, thresholds, gap timing, and turn behavior. Add comments describing how each value affects the robot.
+
+Add debug modes controlled by a compile-time flag. For example, optionally print sensor mask, position, PID correction, motor speeds, and detected junction. Keep serial output disabled during racing because it slows the control loop.
+
+Measure loop time with micros(). A fast, consistent control-loop time makes PID behavior more stable and helps identify slow code paths.
+
+Use a state-based turn routine. Currently a detected sharp turn commands a pivot each loop. A dedicated “turning” state that exits only after the center sensors find the line can make 90° turns more dependable.
+
+Improve calibration validation. After calibration, check that every sensor observed a sufficiently large min–max range. If not, indicate a failed calibration rather than using unreliable thresholds.
+
+Add a safe error/fault state: stop the motors if sensor data is implausible, calibration fails, or the line remains lost for too long.
+
+Keep test files separate from the main build. Ensure only the intended entry-point source is compiled, so test sketches and the monolithic file cannot conflict with main.cpp.
+
+Record your tested values in a small tuning table: track type, lighting, battery voltage, PID values, and resulting behavior. For line followers, this documentation becomes surprisingly valuable.
+
+The design is solid for a student/competition line follower. The biggest next gains will come from robust turning behavior, calibration checks, and systematic PID/speed tuning—not from further splitting files.
+
+
