@@ -28,3 +28,17 @@ Sensors: 87	90	99	91	89	95	 Avg Read Time: 182.48 us
 Sensors: 87	90	99	91	90	94	 Avg Read Time: 182.00 us
 Sensors: 87	90	99	91	90	95	 Avg Read Time: 182.04 us
 Sensors: 87	90	99	90	89	94	 Avg Read Time: 182.04 us
+
+
+latest benchmark after the DIDR0 disables the digital input buffer on A0–A5, which slightly reduces noise and power consumption .
+Make readADC() slightly faster
+Instead of ADMUX = (ADMUX & 0xF0) | channel;
+ you can use ADMUX = _BV(REFS0) | channel; because the reference never changes.
+Sensors: 93	97	98	944	99	105	 Avg Read Time: 174.80 us
+Sensors: 93	97	98	944	99	104	 Avg Read Time: 175.04 us
+Sensors: 93	97	97	944	99	104	 Avg Read Time: 174.80 us
+Sensors: 93	96	96	940	98	103	 Avg Read Time: 174.72 us
+Sensors: 93	96	97	942	99	104	 Avg Read Time: 174.76 us
+Sensors: 93	97	98	942	98	103	 Avg Read Time: 174.68 us
+Sensors: 93	96	96	933	95	98	 Avg Read Time: 174.84 us
+Sensors: 91	96	97	941	100	109	 Avg Read Time: 174.92 us
