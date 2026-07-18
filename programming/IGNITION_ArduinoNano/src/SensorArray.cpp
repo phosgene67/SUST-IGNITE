@@ -11,17 +11,42 @@ void SensorArray::begin() {
     }
     onLineMask = 0;
     sensorOnState = 0;
+    initADC();
 
     // Optional IR emitter control, if your QTR-6A board has one wired
     // to a digital pin instead of always-on:
     // pinMode(4, OUTPUT);
     // digitalWrite(4, HIGH);
 }
-
-void SensorArray::readAnalog() {
-    for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-        sensorValues[i] = analogRead(sensorPins[i]);
-    }
+void SensorArray::initADC()
+{
+    // AVcc reference
+    ADMUX = (1 << REFS0);
+    // Enable ADC
+    // Prescaler = 32
+    // ADC Clock = 16MHz / 32 = 500kHz
+    ADCSRA =
+        (1 << ADEN)  |
+        (1 << ADPS2) |
+        (1 << ADPS0);
+    DIDR0 = 0x3F;          // Disable digital input on A0-A5
+    
+}
+inline uint16_t SensorArray:: readADC(uint8_t channel)
+{
+    ADMUX = _BV(REFS0) | channel;
+    ADCSRA |= _BV(ADSC);
+    while (ADCSRA & _BV(ADSC));
+    return ADC;
+}
+void SensorArray:: readAnalog()
+{
+    sensorValues[0] = readADC(5);
+    sensorValues[1] = readADC(4);
+    sensorValues[2] = readADC(3);
+    sensorValues[3] = readADC(2);
+    sensorValues[4] = readADC(1);
+    sensorValues[5] = readADC(0);
 }
 
 void SensorArray::readDigital() {

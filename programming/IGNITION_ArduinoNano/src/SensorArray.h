@@ -5,7 +5,6 @@
 class SensorArray {
 public:
     void begin();
-
     void readAnalog();     // populates raw sensorValues[] - call once per loop
     void readDigital();    // thresholds the values already in sensorValues[]
 
@@ -24,6 +23,8 @@ public:
     void printPosition();
 
 private:
+    void initADC();
+     uint16_t readADC(uint8_t channel);
     int sensorValues[NUM_SENSORS];
     uint16_t sensorMin[NUM_SENSORS];
     uint16_t sensorMax[NUM_SENSORS];

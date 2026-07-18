@@ -101,6 +101,8 @@ public:
     void printPosition();
 
 private:
+    void initADC();
+     uint16_t readADC(uint8_t channel);
     int sensorValues[NUM_SENSORS];
     uint16_t sensorMin[NUM_SENSORS];
     uint16_t sensorMax[NUM_SENSORS];
@@ -358,17 +360,45 @@ void SensorArray::begin() {
     }
     onLineMask = 0;
     sensorOnState = 0;
+    initADC();
 
     // Optional IR emitter control, if your QTR-6A board has one wired
     // to a digital pin instead of always-on:
     // pinMode(4, OUTPUT);
     // digitalWrite(4, HIGH);
 }
+void SensorArray::initADC()
+{
+    // AVcc reference
+    ADMUX = (1 << REFS0);
+    // Enable ADC
+    // Prescaler = 32
+    // ADC Clock = 16MHz / 32 = 500kHz
+    ADCSRA =
+        (1 << ADEN)  |
+        (1 << ADPS2) |
+        (1 << ADPS0);
+    DIDR0 = 0x3F;          // Disable digital input on A0-A5
+    
+}
+inline uint16_t SensorArray:: readADC(uint8_t channel)
+{
+    ADMUX = _BV(REFS0) | channel;
 
-void SensorArray::readAnalog() {
-    for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-        sensorValues[i] = analogRead(sensorPins[i]);
-    }
+    ADCSRA |= _BV(ADSC);
+
+    while (ADCSRA & _BV(ADSC));
+
+    return ADC;
+}
+void SensorArray:: readAnalog()
+{
+    sensorValues[0] = readADC(5);
+    sensorValues[1] = readADC(4);
+    sensorValues[2] = readADC(3);
+    sensorValues[3] = readADC(2);
+    sensorValues[4] = readADC(1);
+    sensorValues[5] = readADC(0);
 }
 
 void SensorArray::readDigital() {
@@ -388,19 +418,20 @@ void SensorArray::readDigital() {
     onLineMask = mask;
 }
 
+
 void SensorArray::calibrate() {
-    // Call this repeatedly (once per loop, ~1-2 seconds' worth) WHILE
-    // Robot spins the chassis over the line so every sensor sweeps
-    // both black and white. This method only samples and folds into
-    // the running min/max - it doesn't move anything itself, since
-    // motion policy belongs to Robot, not the sensor module.
     readAnalog();
+
     for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-        if (sensorValues[i] < sensorMin[i]) sensorMin[i] = sensorValues[i];
-        if (sensorValues[i] > sensorMax[i]) sensorMax[i] = sensorValues[i];
+        uint16_t val = sensorValues[i];
+
+        if (val < sensorMin[i])
+            sensorMin[i] = val;
+
+        if (val > sensorMax[i])
+            sensorMax[i] = val;
     }
 }
-
 void SensorArray::autoThreshold() {
     for (uint8_t i = 0; i < NUM_SENSORS; i++) {
         threshold[i] = (sensorMin[i] + sensorMax[i]) / 2;
