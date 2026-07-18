@@ -42,24 +42,16 @@ void SensorArray::readDigital() {
 }
 
 void SensorArray::calibrate() {
-    // Call this repeatedly (once per loop, ~1-2 seconds' worth) WHILE
-    // Robot spins the chassis over the line so every sensor sweeps
-    // both black and white. This method only samples and folds into
-    // the running min/max - it doesn't move anything itself, since
-    // motion policy belongs to Robot, not the sensor module.
     readAnalog();
+
     for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-        uint8_t val = sensorValues[i];
-        uint8_t currentMin=sensorMin[i];
-        uint8_t currentMax=sensorMax[i];
-        if(val<currentMin){
-            sensorMin[i]=val;
-        }
-        else if (val>currentMax){
-            sensorMax[i]=val;
-        }
-        // if (sensorValues[i] < sensorMin[i]) sensorMin[i] = sensorValues[i];
-        // if (sensorValues[i] > sensorMax[i]) sensorMax[i] = sensorValues[i];
+        uint16_t val = sensorValues[i];
+
+        if (val < sensorMin[i])
+            sensorMin[i] = val;
+
+        if (val > sensorMax[i])
+            sensorMax[i] = val;
     }
 }
 
