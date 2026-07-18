@@ -89,18 +89,20 @@ void initADC()
         (1 << ADEN)  |
         (1 << ADPS2) |
         (1 << ADPS0);
+    DIDR0 = 0x3F;          // Disable digital input on A0-A5
+    
 }
 //------------------------------------------------------------
 // Fast ADC Read
 //------------------------------------------------------------
 inline uint16_t readADC(uint8_t channel)
 {
-    // Keep reference bits, change only channel
-    ADMUX = (ADMUX & 0xF0) | channel;
-    // Start conversion
-    ADCSRA |= (1 << ADSC);
-    // Wait until conversion complete
-    while (ADCSRA & (1 << ADSC));
+    ADMUX = _BV(REFS0) | channel;
+
+    ADCSRA |= _BV(ADSC);
+
+    while (ADCSRA & _BV(ADSC));
+
     return ADC;
 }
 
