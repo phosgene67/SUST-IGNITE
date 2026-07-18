@@ -1,8 +1,13 @@
 #ifndef JUNCTIONDETECTOR_H
 #define JUNCTIONDETECTOR_H
 #include<Arduino.h>
+
+class SensorArray;
+
 class JunctionDetector {
 public:
+    explicit JunctionDetector(SensorArray& sensor);
+
     void begin();
     void update();   // call once per loop, right after sensor.readDigital()
 
@@ -20,6 +25,7 @@ public:
     unsigned long blackDuration() const;  // ms since all-black began, 0 if not currently all-black
 
 private:
+    SensorArray& _sensor;
     uint8_t currentMask = 0;
     uint8_t previousMask = 0;
 

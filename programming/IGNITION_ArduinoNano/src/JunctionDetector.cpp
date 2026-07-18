@@ -2,7 +2,8 @@
 #include "SensorArray.h"
 #include<Arduino.h>
 
-extern SensorArray sensor;
+JunctionDetector::JunctionDetector(SensorArray& sensor) : _sensor(sensor) {}
+
 void JunctionDetector::begin() {
     currentMask = 0;
     previousMask = 0;
@@ -14,7 +15,7 @@ void JunctionDetector::begin() {
 
 void JunctionDetector::update() {
     previousMask = currentMask;
-    currentMask = sensor.getMask();
+    currentMask = _sensor.getMask();
     unsigned long now = millis();
 
     if (currentMask == ALL_SENSORS_MASK) {
@@ -47,19 +48,19 @@ unsigned long JunctionDetector::blackDuration() const {
 bool JunctionDetector::detect45Left() {
     // Only meaningful for a partial mask - caller guarantees this by
     // checking cross/T/white cases first.
-    int err = sensor.getError();
+    int err = _sensor.getError();
     return (err <= -TURN_45_MIN_ERROR && err > -TURN_90_MIN_ERROR) &&
            !(currentMask & RIGHT_HALF_MASK);
 }
 
 bool JunctionDetector::detect45Right() {
-    int err = sensor.getError();
+    int err = _sensor.getError();
     return (err >= TURN_45_MIN_ERROR && err < TURN_90_MIN_ERROR) &&
            !(currentMask & LEFT_HALF_MASK);
 }
 
 bool JunctionDetector::detect90Left() {
-    int err = sensor.getError();
+    int err = _sensor.getError();
 
     return (err <= -TURN_90_MIN_ERROR) &&
            (currentMask & LEFT_EXTREME_MASK) &&
@@ -67,7 +68,7 @@ bool JunctionDetector::detect90Left() {
 }
 
 bool JunctionDetector::detect90Right() {
-     int err = sensor.getError();
+    int err = _sensor.getError();
 
     return (err >= TURN_90_MIN_ERROR) &&
            (currentMask & RIGHT_EXTREME_MASK) &&

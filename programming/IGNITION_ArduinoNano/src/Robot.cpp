@@ -1,4 +1,3 @@
-#include "Globals.h"
 #include "Robot.h"
 #include "MotorDriver.h"
 #include "SensorArray.h"
@@ -6,26 +5,25 @@
 #include "JunctionDetector.h"
 #include<Arduino.h>
 
-extern MotorDriver motor;
-extern SensorArray sensor;
-extern PIDController pid;
-extern JunctionDetector junction;
-extern RobotState currentState;
+Robot::Robot(MotorDriver& motor, SensorArray& sensor,
+             PIDController& pid, JunctionDetector& junction)
+    : _motor(motor), _sensor(sensor), _pid(pid), _junction(junction) {}
+
 void Robot::begin() {
     Serial.begin(9600);   // harmless if you never call the print*() debug methods
 
-    motor.begin();
-    sensor.begin();
-    pid.begin();
-    pid.setTunings(180, 0, 90);   // Q8: ~0.70, 0, ~0.35 real gains
-    pid.setOutputLimits(-255, 255);
-    junction.begin();
+    _motor.begin();
+    _sensor.begin();
+    _pid.begin();
+    _pid.setTunings(180, 0, 90);   // Q8: ~0.70, 0, ~0.35 real gains
+    _pid.setOutputLimits(-255, 255);
+    _junction.begin();
 
     pinMode(BTN_START, INPUT_PULLUP);
     pinMode(BTN_STOP, INPUT_PULLUP);
     pinMode(BTN_CALIBRATE, INPUT_PULLUP);
 
-    currentState = STATE_IDLE;
+    _currentState = STATE_IDLE;
 }
 
 bool Robot::readButtonPressed(uint8_t pin, uint8_t index) {
@@ -45,36 +43,36 @@ void Robot::updateState() {
     bool startPressed = readButtonPressed(BTN_START, 1);
     bool stopPressed = readButtonPressed(BTN_STOP, 2);
 
-    if (calibratePressed && currentState == STATE_IDLE) {
-        currentState = STATE_CALIBRATING;
+    if (calibratePressed && _currentState == STATE_IDLE) {
+        _currentState = STATE_CALIBRATING;
         _calibrationStartTime = millis();
-        motor.turnLeft(90);   // rotate in place so every sensor sweeps the line
+        _motor.turnLeft(90);   // rotate in place so every sensor sweeps the line
     }
 
-    if (startPressed && (currentState == STATE_STOPPED || currentState == STATE_IDLE)) {
-        currentState = STATE_RUNNING;
-        pid.reset();
+    if (startPressed && (_currentState == STATE_STOPPED || _currentState == STATE_IDLE)) {
+        _currentState = STATE_RUNNING;
+        _pid.reset();
         _cruiseSpeed = BASE_SPEED;
         _lastRampTime = millis();
         _hasTrackedLine = false;
         _lastDirection = 0;
-        motor.stop();
+        _motor.stop();
     }
 
-    if (stopPressed && currentState == STATE_RUNNING) {
-        currentState = STATE_STOPPED;
-        motor.stop();
+    if (stopPressed && _currentState == STATE_RUNNING) {
+        _currentState = STATE_STOPPED;
+        _motor.stop();
     }
 }
 
 void Robot::executeState() {
-    switch (currentState) {
+    switch (_currentState) {
         case STATE_CALIBRATING: {
-            sensor.calibrate();
+            _sensor.calibrate();
             if (millis() - _calibrationStartTime >= CALIBRATION_DURATION_MS) {
-                motor.stop();
-                sensor.autoThreshold();
-                currentState = STATE_STOPPED;
+                _motor.stop();
+                _sensor.autoThreshold();
+                _currentState = STATE_STOPPED;
             }
             break;
         }
@@ -94,35 +92,35 @@ void Robot::update() {
 }
 
 void Robot::followLine() {
-    sensor.readAnalog();
-    sensor.readDigital();
-    junction.update();
+    _sensor.readAnalog();
+    _sensor.readDigital();
+    _junction.update();
     // ---------- full-width black held long = finish/stop box ----------
-    if (junction.detectStopBox()) { handleStopBox(); return; }
+    if (_junction.detectStopBox()) { handleStopBox(); return; }
     // ---------- full-width black bar: cross / T-junction ----------
    
-    if (junction.detectTJunction()) { handleTJunction(); return; }
-     if (junction.detectCross()) { handleCross(); return; }
+    if (_junction.detectTJunction()) { handleTJunction(); return; }
+     if (_junction.detectCross()) { handleCross(); return; }
 
     // ---------- line lost entirely: gap or genuine derailment ----------
-    if (junction.detectGap()) { handleGap(); return; }
-    if (junction.detectLostLine()) { searchLine(); return; }
+    if (_junction.detectGap()) { handleGap(); return; }
+    if (_junction.detectLostLine()) { searchLine(); return; }
 
     // ---------- sharp corners: commit to a pivot ----------
-    if (junction.detect90Left())  { handle90Left();  return; }
-    if (junction.detect90Right()) { handle90Right(); return; }
+    if (_junction.detect90Left())  { handle90Left();  return; }
+    if (_junction.detect90Right()) { handle90Right(); return; }
 
     // ---------- gentle diagonals: PID already steers this correctly,
     // these hooks just keep bookkeeping fresh a beat early ----------
-    if (junction.detect45Left())  { handle45Left();  }
-    if (junction.detect45Right()) { handle45Right(); }
+    if (_junction.detect45Left())  { handle45Left();  }
+    if (_junction.detect45Right()) { handle45Right(); }
 
     // ---------- normal line tracking ----------
     _hasTrackedLine = true;
-    int error = sensor.getError();
+    int error = _sensor.getError();
     _lastDirection = (error > 0) ? 1 : (error < 0 ? -1 : _lastDirection);
 
-    int correction = pid.compute(error);
+    int correction = _pid.compute(error);
 
     int absErr = (error < 0) ? -error : error;
     unsigned long now = millis();
@@ -142,7 +140,7 @@ void Robot::followLine() {
     int rightSpeed = _cruiseSpeed + correction;
     int leftSpeed  = _cruiseSpeed - correction;
 
-    motor.drive(leftSpeed, rightSpeed);
+    _motor.drive(leftSpeed, rightSpeed);
 }
 
 void Robot::handle45Left() {
@@ -156,7 +154,7 @@ void Robot::handle45Right() {
 }
 
 void Robot::handle90Left() {
-    motor.turnRight(SEARCH_SPEED);
+    _motor.turnRight(SEARCH_SPEED);
     _lastDirection = 1;
     _hasTrackedLine = true;
     _cruiseSpeed = BASE_SPEED;   // re-enter the straight-line ramp fresh once this clears
@@ -164,7 +162,7 @@ void Robot::handle90Left() {
 }
 
 void Robot::handle90Right() {
-    motor.turnLeft(SEARCH_SPEED);
+    _motor.turnLeft(SEARCH_SPEED);
     _lastDirection = -1;
     _hasTrackedLine = true;
     _cruiseSpeed = BASE_SPEED;
@@ -172,7 +170,7 @@ void Robot::handle90Right() {
 }
 
 void Robot::handleCross() {
-motor.turnRight(SEARCH_SPEED);
+_motor.turnRight(SEARCH_SPEED);
 
     _lastDirection = -1;
     _hasTrackedLine = true;
@@ -181,7 +179,7 @@ motor.turnRight(SEARCH_SPEED);
 }
 
 void Robot::handleTJunction() {
-    motor.turnLeft(SEARCH_SPEED);
+    _motor.turnLeft(SEARCH_SPEED);
 
     _lastDirection = 1;
     _hasTrackedLine = true;
@@ -193,7 +191,7 @@ void Robot::handleGap() {
     // Small dashed-line break - hold last output rather than react;
     // reacting to a single blank scan is what makes robots twitch on
     // dashed tracks.
-    motor.drive(motor.getLastLeftSpeed(), motor.getLastRightSpeed());
+    _motor.drive(_motor.getLastLeftSpeed(), _motor.getLastRightSpeed());
 }
 
 void Robot::handleWhiteLine() {
@@ -202,18 +200,18 @@ void Robot::handleWhiteLine() {
     // than the gap/lost timing split above uses). Not wired into
     // followLine()'s default dispatch since detectGap()/detectLostLine()
     // already cover every case where detectWhiteLine() is true.
-    motor.drive(motor.getLastLeftSpeed(), motor.getLastRightSpeed());
+    _motor.drive(_motor.getLastLeftSpeed(), _motor.getLastRightSpeed());
 }
 
 void Robot::searchLine() {
-    unsigned long lostFor = junction.whiteDuration();
+    unsigned long lostFor = _junction.whiteDuration();
 
     if (_hasTrackedLine && lostFor >= SEARCH_TIMEOUT_MS) {
         // Line was tracked successfully earlier this run and has now
         // been missing well past a reasonable search window - genuine
         // derailment, not a cold start. Fail-safe stop.
-        motor.stop();
-        currentState = STATE_STOPPED;
+        _motor.stop();
+        _currentState = STATE_STOPPED;
         return;
     }
 
@@ -222,14 +220,14 @@ void Robot::searchLine() {
     // sitting in a start box), the `_hasTrackedLine` gate above keeps
     // this searching indefinitely instead of giving up.
     if (_lastDirection > 0) {
-        motor.turnRight(SEARCH_SPEED);
+        _motor.turnRight(SEARCH_SPEED);
     } else if (_lastDirection < 0) {
-        motor.turnLeft(SEARCH_SPEED);
+        _motor.turnLeft(SEARCH_SPEED);
     } else {
-        motor.forward(SEARCH_SPEED);   // no history yet - creep forward
+        _motor.forward(SEARCH_SPEED);   // no history yet - creep forward
     }
 }
 void Robot::handleStopBox() {
-    motor.brake();              // TB6612 short-brake - fast, decisive stop
-    currentState = STATE_STOPPED;
+    _motor.brake();              // TB6612 short-brake - fast, decisive stop
+    _currentState = STATE_STOPPED;
 }
