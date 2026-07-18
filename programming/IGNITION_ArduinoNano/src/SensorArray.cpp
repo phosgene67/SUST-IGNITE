@@ -49,8 +49,17 @@ void SensorArray::calibrate() {
     // motion policy belongs to Robot, not the sensor module.
     readAnalog();
     for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-        if (sensorValues[i] < sensorMin[i]) sensorMin[i] = sensorValues[i];
-        if (sensorValues[i] > sensorMax[i]) sensorMax[i] = sensorValues[i];
+        uint8_t val = sensorValues[i];
+        uint8_t currentMin=sensorMin[i];
+        uint8_t currentMax=sensorMax[i];
+        if(val<currentMin){
+            sensorMin[i]=val;
+        }
+        else if (val>currentMax){
+            sensorMax[i]=val;
+        }
+        // if (sensorValues[i] < sensorMin[i]) sensorMin[i] = sensorValues[i];
+        // if (sensorValues[i] > sensorMax[i]) sensorMax[i] = sensorValues[i];
     }
 }
 
